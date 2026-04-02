@@ -1,16 +1,5 @@
 #!/usr/bin/python3
 
-# Ajatuksia:
-# Mutta tarvitaan varmaan jotain tämmösiä:
-# - Korkea kosteus aktivoi föönin
-# - Mata kosteus deaktivoi föönin
-# - Korkea lämpötila aktivoi föönin (ohittaa ilmankosteuden)
-# - Matala lämpötila deaktivoi föönin (ohittaa ilmankosteuden)
-
-# Tarkasta arvot 13.01.2025 klo ~1802. Plugi meni päälle silloin
-
-# Kokeile ilman threadaamista vain kutsumalla funktioita fan_control(asdasd)
-
 import codecs
 from datetime import datetime, timezone
 
@@ -64,7 +53,7 @@ while True:
 
         def write_to_influxdb(data_to_write):
             # You can generate an API token from the "API Tokens Tab" in the UI
-            token = "35BVEb-2y0GS4sr8hMCsP9IEl-LN9UioM5VUaiZO59T_CBEdCrptkWihB1h4JkWG3v7wcOZzeizuqjXuSRiLig=="
+            token = "influxtokenhere"
             org = "org"
             bucket = "sensordata"
             influx_url = "http://localhost:8086"
