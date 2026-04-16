@@ -179,42 +179,73 @@ def publish_discovery_config(client):
 # ============================
 
 def main():
-    # MQTT-client
-    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2,client_id=MQTT_CLIENT_ID)
+    # 1. Create MQTT client with VERSION2 callback API
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=MQTT_CLIENT_ID)
+    
+    # 2. Set automatic reconnection delays (Paho handles this internally)
+    client.reconnect_delay_set(min_delay=1, max_delay=60)
 
-    # Username if in use
+    # --- CALLBACKS (Updated for VERSION2 compliance) ---
+    
+    # Note: VERSION2 requires 5 arguments: client, userdata, flags, reason_code, properties
+    def on_connect(client, userdata, flags, reason_code, properties=None):
+        if reason_code == 0:
+            print("Connected to MQTT broker successfully.")
+        else:
+            print(f"Connection failed with reason code: {reason_code}")
+
+    # Note: Added 'disconnect_flags' to meet the 5-argument requirement
+    def on_disconnect(client, userdata, disconnect_flags, reason_code, properties=None):
+        # IMPORTANT: Do not use while loops or manual reconnect() here.
+        # loop_start() handles reconnection automatically in the background.
+        print(f"MQTT disconnected (reason code: {reason_code}). Reconnecting automatically...")
+
+    client.on_connect = on_connect
+    client.on_disconnect = on_disconnect
+
+    # 3. Set credentials if provided
     if MQTT_USERNAME:
         client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
 
-    # Connect to broker
+    # 4. Start the background networking loop before connecting
+    client.loop_start()
+
+    # 5. Connect to the broker
     try:
         client.connect(MQTT_BROKER, MQTT_PORT, keepalive=60)
-        print("Connected to MQTT broker.")
     except Exception as e:
-        print("ERROR: MQTT broker connection failed:", e)
+        print("ERROR: Initial MQTT broker connection failed:", e)
+        # Even if the initial connection fails, loop_start will keep trying in the background
         time.sleep(5)
-        return  # or exit(1)
 
-    # Send discovery-configuration to HA
+    # 6. Send Home Assistant discovery configuration
+    # Small delay to ensure the connection is established before publishing
+    time.sleep(1) 
     publish_discovery_config(client)
     print("Sent Home Assistant discovery configuration.")
 
-    while True:
-        data = read_mhz19b()               # read sensor
-        payload = json.dumps(data)         # transform to JSON
+    # 7. Main loop for reading sensor data
+    try:
+        while True:
+            # Read and publish MH-Z19B data
+            mhz_data = read_mhz19b()
+            if mhz_data:
+                client.publish(MHZ19_STATE_TOPIC, json.dumps(mhz_data))
+                print("MH-Z19B →", mhz_data)
 
-        # Publish to MQTT
-        mhz_data = read_mhz19b()
-        client.publish(MHZ19_STATE_TOPIC, json.dumps(mhz_data))
-        print("MH-Z19B →", mhz_data)
+            # Read and publish DHT22 data
+            dht_data = read_dht22()
+            if dht_data:
+                client.publish(DHT_STATE_TOPIC, json.dumps(dht_data))
+                print("DHT22 →", dht_data)
 
-        # DHT22
-        dht_data = read_dht22()
-        client.publish(DHT_STATE_TOPIC, json.dumps(dht_data))
-        print("DHT22 →", dht_data)
-
-        time.sleep(5)
-
+            # Wait 5 seconds before the next reading
+            time.sleep(5)
+            
+    except KeyboardInterrupt:
+        print("Stopping script...")
+        client.loop_stop()
+        client.disconnect()
 
 if __name__ == "__main__":
     main()
